@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Piece Finder</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#12182B; --ink-2:#1B2340; --paper:#F4EFE3;
+    --brick:#FFB627; --brick-deep:#E69A00; --red:#E4483A;
+    --line:#3A4266; --muted:#9AA1C2; --radius:14px;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;padding:0;}
+  body{ background:var(--ink); color:var(--paper); font-family:'Inter',sans-serif; min-height:100vh; display:flex; justify-content:center;}
+  .app{ width:100%; max-width:480px; min-height:100vh; display:flex; flex-direction:column;
+    background: radial-gradient(circle at 10% 0%, rgba(255,182,39,0.08), transparent 40%), var(--ink); }
+
+  header{ padding:22px 20px 14px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--line); }
+  .brand{ display:flex; align-items:center; gap:10px; }
+  .stud{ width:22px;height:22px;border-radius:50%; background:var(--brick); box-shadow: 0 0 0 4px var(--ink-2), 0 0 0 5px var(--line); }
+  h1{ font-family:'Space Grotesk', sans-serif; font-size:19px; font-weight:700; margin:0; letter-spacing:-0.01em; }
+  .eyebrow{ font-family:'JetBrains Mono', monospace; font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.12em; margin:0; }
+  .icon-btn{ background:var(--ink-2); border:1px solid var(--line); color:var(--paper); width:38px;height:38px; border-radius:10px;
+    display:flex;align-items:center;justify-content:center; cursor:pointer; font-size:16px; }
+  .icon-btn:focus-visible, button:focus-visible, input:focus-visible{ outline:2px solid var(--brick); outline-offset:2px; }
+
+  .stage{ margin:18px 20px 0; position:relative; border-radius:18px; overflow:hidden; background:#000; aspect-ratio: 1/1; border:1px solid var(--line); }
+  video, canvas.preview{ width:100%; height:100%; object-fit:cover; display:block; }
+  .stage.hidden-video video{ display:none; }
+  .stage-empty{ position:absolute; inset:0; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:10px;
+    color:var(--muted); font-family:'JetBrains Mono', monospace; font-size:12px; text-align:center; padding:0 30px; }
+  .reticle{ position:absolute; inset:16px; pointer-events:none; border:2px dashed rgba(255,182,39,0.5); border-radius:12px; }
+
+  .stage-controls{ display:flex; gap:10px; padding:14px 20px 4px; }
+  .btn{ flex:1; padding:13px 14px; border-radius:12px; border:none; font-family:'Space Grotesk', sans-serif; font-weight:600; font-size:14px; cursor:pointer; }
+  .btn-primary{ background:var(--brick); color:var(--ink); }
+  .btn-primary:active{ background:var(--brick-deep); }
+  .btn-ghost{ background:transparent; border:1px solid var(--line); color:var(--paper); }
+  .btn-danger{ background:var(--red); color:var(--paper); }
+  .hidden{ display:none !important; }
+
+  .manual{ display:flex; gap:8px; padding:16px 20px 4px; }
+  .manual input{ flex:1; background:var(--ink-2); border:1px solid var(--line); color:var(--paper); border-radius:10px;
+    padding:12px 12px; font-family:'JetBrains Mono', monospace; font-size:13px; }
+  .manual input::placeholder{ color:var(--muted); }
+
+  .section-label{ padding:22px 20px 8px; font-family:'JetBrains Mono', monospace; font-size:11px; letter-spacing:0.12em;
+    text-transform:uppercase; color:var(--muted); display:flex; justify-content:space-between; align-items:center; }
+  .link-btn{ background:none;border:none;color:var(--brick); font-family:'JetBrains Mono', monospace; font-size:11px; cursor:pointer; }
+
+  .result-card{ margin:0 20px 16px; background:var(--ink-2); border:1px solid var(--line); border-radius:var(--radius); padding:16px; }
+  .result-top{ display:flex; gap:14px; }
+  .result-thumb{ width:64px;height:64px;flex:none; border-radius:10px; overflow:hidden;
+    background:linear-gradient(135deg, var(--brick), var(--brick-deep)); display:flex;align-items:center;justify-content:center;
+    font-family:'Space Grotesk',sans-serif; font-weight:700; color:var(--ink); font-size:20px; }
+  .result-thumb img{ width:100%;height:100%;object-fit:cover; }
+  .result-id{ font-family:'JetBrains Mono', monospace; font-size:11px; color:var(--muted); }
+  .result-name{ font-family:'Space Grotesk', sans-serif; font-weight:600; font-size:15px; margin:2px 0 6px; }
+  .result-actions{ display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; }
+  .result-actions a, .result-actions button{ flex:1; min-width:120px; text-align:center; text-decoration:none;
+    padding:10px; border-radius:9px; font-size:12.5px; font-family:'Inter',sans-serif; font-weight:500; border:none; cursor:pointer; }
+  .note{ font-size:11.5px; color:var(--muted); margin-top:10px; line-height:1.5; }
+  .status-msg{ font-size:11.5px; padding:10px 12px; border-radius:9px; margin-top:0; line-height:1.5; }
+  .status-msg.err{ background:rgba(228,72,58,0.12); color:#FF8B7E; border:1px solid rgba(228,72,58,0.3); }
+  .status-msg.ok{ background:rgba(255,182,39,0.1); color:var(--brick); border:1px solid rgba(255,182,39,0.3); }
+
+  .history-item{ margin:0 20px 10px; display:flex; align-items:center; gap:12px; background:var(--ink-2);
+    border:1px solid var(--line); border-radius:10px; padding:10px 12px; }
+  .history-item .dot{ width:8px;height:8px;border-radius:50%;background:var(--brick); flex:none; }
+  .history-item .meta{ flex:1; min-width:0; }
+  .history-item .hid{ font-family:'JetBrains Mono',monospace; font-size:12px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .history-item .hsub{ font-size:11px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .history-item a{ color:var(--brick); font-size:11px; font-family:'JetBrains Mono',monospace; text-decoration:none; flex:none; }
+  .history-empty{ margin:0 20px; padding:20px; text-align:center; color:var(--muted); font-size:12.5px; border:1px dashed var(--line); border-radius:12px; }
+
+  footer{ padding:20px; margin-top:auto; }
+
+  .modal-backdrop{ position:fixed; inset:0; background:rgba(10,12,24,0.72); display:none; align-items:flex-end; justify-content:center; z-index:50; }
+  .modal-backdrop.open{ display:flex; }
+  .modal{ width:100%; max-width:480px; background:var(--ink-2); border-top-left-radius:20px; border-top-right-radius:20px;
+    border:1px solid var(--line); border-bottom:none; padding:18px 20px 26px; max-height:85vh; overflow-y:auto; }
+  .modal h2{ font-family:'Space Grotesk',sans-serif; font-size:17px; margin:4px 0 4px; }
+  .modal p.desc{ font-size:12px; color:var(--muted); margin:0 0 16px; line-height:1.5; }
+  .field{ margin-bottom:12px; }
+  .field label{ display:block; font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em; margin-bottom:5px; }
+  .field input{ width:100%; background:var(--ink); border:1px solid var(--line); color:var(--paper); border-radius:9px; padding:11px 12px; font-size:13px; font-family:'JetBrains Mono',monospace; }
+  .modal-actions{ display:flex; gap:10px; margin-top:16px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <div class="brand">
+      <div class="stud"></div>
+      <div>
+        <h1>Piece Finder</h1>
+        <p class="eyebrow">photo → BrickLink search</p>
+      </div>
+    </div>
+    <button class="icon-btn" id="settingsBtn" aria-label="Settings">⚙</button>
+  </header>
+
+  <div class="stage" id="stage">
+    <video id="video" autoplay playsinline muted></video>
+    <img id="shotPreview" class="preview hidden" alt="">
+    <div class="stage-empty" id="stageEmpty">
+      <span style="font-size:26px;">◧</span>
+      <span>Tap "Start camera," then center one piece against a plain background</span>
+    </div>
+    <div class="reticle hidden" id="reticle"></div>
+  </div>
+
+  <div class="stage-controls">
+    <button class="btn btn-primary" id="startBtn">Start camera</button>
+    <button class="btn btn-primary hidden" id="captureBtn">Take photo</button>
+    <button class="btn btn-ghost hidden" id="retakeBtn">Retake</button>
+    <button class="btn btn-danger hidden" id="stopBtn">Stop</button>
+  </div>
+
+  <div class="manual">
+    <input type="text" id="manualInput" placeholder="Or search BrickLink directly, e.g. 3001 or &quot;blue 2x4 brick&quot;">
+    <button class="btn btn-ghost" id="manualBtn" style="flex:none; padding:0 16px;">Search</button>
+  </div>
+
+  <div id="resultWrap"></div>
+
+  <div class="section-label">
+    <span>Recent</span>
+    <button class="link-btn" id="clearHistoryBtn">clear</button>
+  </div>
+  <div id="historyWrap"></div>
+
+  <footer></footer>
+</div>
+
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal">
+    <h2>Connect a vision API</h2>
+    <p class="desc">The photo gets sent here to guess the piece's name/part number, then the app builds a BrickLink search link from that guess. Any OpenAI-compatible vision endpoint works. Your key stays only in this browser.</p>
+    <div class="field"><label>Endpoint URL</label><input id="visionEndpoint" type="text" placeholder="https://api.openai.com/v1/chat/completions"></div>
+    <div class="field"><label>API key</label><input id="visionKey" type="password" autocomplete="off"></div>
+    <div class="field"><label>Model name</label><input id="visionModel" type="text" placeholder="e.g. gpt-4o-mini"></div>
+    <p class="desc" style="margin-top:2px;">No key? Photos still work — you'll just get a manual search box instead of an auto-guess.</p>
+    <div id="settingsStatus"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="closeSettingsBtn">Cancel</button>
+      <button class="btn btn-primary" id="saveSettingsBtn">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const $ = (id) => document.getElementById(id);
+  const video = $('video');
+  const shotPreview = $('shotPreview');
+  const stageEmpty = $('stageEmpty');
+  const reticle = $('reticle');
+  const startBtn = $('startBtn');
+  const captureBtn = $('captureBtn');
+  const retakeBtn = $('retakeBtn');
+  const stopBtn = $('stopBtn');
+  const resultWrap = $('resultWrap');
+  const historyWrap = $('historyWrap');
+
+  let mediaStream = null;
+  let settings = { vision: {} };
+
+  function loadSettings(){
+    try{
+      const raw = localStorage.getItem('piecefinder:settings');
+      if(raw) settings = JSON.parse(raw);
+    }catch(e){}
+    if(!settings.vision) settings.vision = {};
+  }
+  function saveSettings(){
+    try{ localStorage.setItem('piecefinder:settings', JSON.stringify(settings)); }catch(e){}
+  }
+  function loadHistory(){
+    try{ const raw = localStorage.getItem('piecefinder:history'); return raw ? JSON.parse(raw) : []; }
+    catch(e){ return []; }
+  }
+  function pushHistory(entry){
+    const h = loadHistory();
+    h.unshift(entry);
+    try{ localStorage.setItem('piecefinder:history', JSON.stringify(h.slice(0,40))); }catch(e){}
+    renderHistory();
+  }
+  function clearHistory(){
+    try{ localStorage.setItem('piecefinder:history', JSON.stringify([])); }catch(e){}
+    renderHistory();
+  }
+  function escapeHtml(s){
+    return String(s || '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+  function renderHistory(){
+    const h = loadHistory();
+    if(!h.length){
+      historyWrap.innerHTML = '<div class="history-empty">Nothing searched yet.</div>';
+      return;
+    }
+    historyWrap.innerHTML = h.map(item => `
+      <div class="history-item">
+        <div class="dot"></div>
+        <div class="meta">
+          <div class="hid">${escapeHtml(item.label)}</div>
+          <div class="hsub">${escapeHtml(item.when)}</div>
+        </div>
+        <a href="${item.url}" target="_blank" rel="noopener">reopen</a>
+      </div>
+    `).join('');
+  }
+
+  function blSearchUrl(query){
+    return `https://www.bricklink.com/v2/search.page?q=${encodeURIComponent(query)}&catType=P`;
+  }
+
+  // ---------- camera ----------
+  async function startCamera(){
+    stageEmpty.classList.add('hidden');
+    shotPreview.classList.add('hidden');
+    video.classList.remove('hidden');
+    reticle.classList.remove('hidden');
+    startBtn.classList.add('hidden');
+    captureBtn.classList.remove('hidden');
+    stopBtn.classList.remove('hidden');
+    retakeBtn.classList.add('hidden');
+    try{
+      mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      video.srcObject = mediaStream;
+    }catch(e){
+      resultWrap.innerHTML = `<div class="result-card"><div class="status-msg err">Could not access the camera — check camera permissions for this page/browser.</div></div>`;
+      resetStage();
+    }
+  }
+  function stopCamera(){
+    if(mediaStream){ mediaStream.getTracks().forEach(t => t.stop()); mediaStream = null; }
+  }
+  function resetStage(){
+    stopCamera();
+    stageEmpty.classList.remove('hidden');
+    video.classList.add('hidden');
+    shotPreview.classList.add('hidden');
+    reticle.classList.add('hidden');
+    startBtn.classList.remove('hidden');
+    captureBtn.classList.add('hidden');
+    retakeBtn.classList.add('hidden');
+    stopBtn.classList.add('hidden');
+  }
+  function takePhoto(){
+    const w = video.videoWidth, h = video.videoHeight;
+    if(!w) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(video, 0, 0, w, h);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+    shotPreview.src = dataUrl;
+    shotPreview.classList.remove('hidden');
+    video.classList.add('hidden');
+    reticle.classList.add('hidden');
+    captureBtn.classList.add('hidden');
+    retakeBtn.classList.remove('hidden');
+    stopCamera();
+    identifyPhoto(dataUrl);
+  }
+
+  startBtn.addEventListener('click', startCamera);
+  captureBtn.addEventListener('click', takePhoto);
+  stopBtn.addEventListener('click', resetStage);
+  retakeBtn.addEventListener('click', startCamera);
+
+  // ---------- manual search ----------
+  $('manualBtn').addEventListener('click', () => {
+    const v = $('manualInput').value.trim();
+    if(v) doManualSearch(v);
+  });
+  $('manualInput').addEventListener('keydown', (e) => { if(e.key === 'Enter') $('manualBtn').click(); });
+
+  function doManualSearch(query){
+    const url = blSearchUrl(query);
+    resultWrap.innerHTML = `
+      <div class="result-card">
+        <div class="result-top">
+          <div class="result-thumb">?</div>
+          <div>
+            <div class="result-id">Search</div>
+            <div class="result-name">${escapeHtml(query)}</div>
+          </div>
+        </div>
+        <div class="result-actions">
+          <a href="${url}" target="_blank" rel="noopener" class="btn-primary" style="color:var(--ink);">Open BrickLink results</a>
+        </div>
+      </div>
+    `;
+    window.open(url, '_blank', 'noopener');
+    pushHistory({ label: query, when: new Date().toLocaleString(), url });
+  }
+
+  // ---------- AI identify ----------
+  async function identifyPhoto(dataUrl){
+    if(!settings.vision.endpoint || !settings.vision.key){
+      resultWrap.innerHTML = `
+        <div class="result-card">
+          <div class="result-top">
+            <div class="result-thumb"><img src="${dataUrl}"></div>
+            <div>
+              <div class="result-id">Photo captured</div>
+              <div class="result-name">No vision API connected</div>
+            </div>
+          </div>
+          <p class="note">Add a vision API key in Settings (⚙) to auto-guess the piece, or type what you see in the search box above — colour, shape, and stud count go a long way (e.g. "black 1x2 plate").</p>
+        </div>
+      `;
+      return;
+    }
+    resultWrap.innerHTML = `<div class="result-card"><div class="status-msg ok">Sending photo to your vision API…</div></div>`;
+    try{
+      const resp = await fetch(settings.vision.endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${settings.vision.key}` },
+        body: JSON.stringify({
+          model: settings.vision.model || 'gpt-4o-mini',
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'text', text: 'This is a photo of a single LEGO piece (a brick, plate, tile, or other part — not a set or minifig). Identify it as precisely as you can: the official BrickLink part number if you recognize it, otherwise a short precise description (colour, piece type, stud dimensions, e.g. "reddish brown 2x4 brick" or "trans-clear 1x1 round tile"). Reply with just that, nothing else.' },
+              { type: 'image_url', image_url: { url: dataUrl } }
+            ]
+          }],
+          max_tokens: 60
+        })
+      });
+      if(!resp.ok) throw new Error('bad response');
+      const json = await resp.json();
+      const text = (json.choices?.[0]?.message?.content || json.content?.[0]?.text || '').trim();
+      const url = blSearchUrl(text || 'lego part');
+      resultWrap.innerHTML = `
+        <div class="result-card">
+          <div class="result-top">
+            <div class="result-thumb"><img src="${dataUrl}"></div>
+            <div>
+              <div class="result-id">Best guess</div>
+              <div class="result-name">${escapeHtml(text || 'No confident match')}</div>
+            </div>
+          </div>
+          <div class="result-actions">
+            <a href="${url}" target="_blank" rel="noopener" class="btn-primary" style="color:var(--ink);">Search on BrickLink</a>
+          </div>
+          <p class="note">AI guesses on exact part number/colour aren't always right — check the search results against your piece before buying.</p>
+        </div>
+      `;
+      pushHistory({ label: text || '(unidentified piece)', when: new Date().toLocaleString(), url });
+    }catch(e){
+      resultWrap.innerHTML = `
+        <div class="result-card">
+          <div class="result-top">
+            <div class="result-thumb"><img src="${dataUrl}"></div>
+            <div>
+              <div class="result-id">Request failed</div>
+              <div class="result-name">Could not reach the vision API</div>
+            </div>
+          </div>
+          <p class="note">The request failed or was blocked (some providers don't allow direct browser calls). Try the manual search box instead, or check your endpoint/key in Settings.</p>
+        </div>
+      `;
+    }
+  }
+
+  // ---------- settings modal ----------
+  $('settingsBtn').addEventListener('click', () => {
+    $('visionEndpoint').value = settings.vision.endpoint || '';
+    $('visionKey').value = settings.vision.key || '';
+    $('visionModel').value = settings.vision.model || '';
+    $('settingsStatus').innerHTML = '';
+    $('modalBackdrop').classList.add('open');
+  });
+  $('closeSettingsBtn').addEventListener('click', () => $('modalBackdrop').classList.remove('open'));
+  $('saveSettingsBtn').addEventListener('click', () => {
+    settings.vision = {
+      endpoint: $('visionEndpoint').value.trim(),
+      key: $('visionKey').value.trim(),
+      model: $('visionModel').value.trim()
+    };
+    saveSettings();
+    $('settingsStatus').innerHTML = '<div class="status-msg ok">Saved on this device.</div>';
+    setTimeout(() => $('modalBackdrop').classList.remove('open'), 700);
+  });
+
+  $('clearHistoryBtn').addEventListener('click', clearHistory);
+
+  // ---------- init ----------
+  loadSettings();
+  renderHistory();
+})();
+</script>
+</body>
+</html>
