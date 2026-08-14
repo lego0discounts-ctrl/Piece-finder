@@ -334,7 +334,12 @@
           generationConfig: { maxOutputTokens: 60 }
         })
       });
-      if(!resp.ok) throw new Error('bad response');
+      if(!resp.ok){
+        const errBody = await resp.text().catch(() => '');
+        let detail = '';
+        try{ detail = JSON.parse(errBody)?.error?.message || ''; }catch(e){ detail = errBody.slice(0,200); }
+        throw new Error(`HTTP ${resp.status}${detail ? ': ' + detail : ''}`);
+      }
       const json = await resp.json();
       const text = (json.candidates?.[0]?.content?.parts?.[0]?.text || '').trim();
       const url = blSearchUrl(text || 'lego part');
@@ -361,10 +366,11 @@
             <div class="result-thumb"><img src="${dataUrl}"></div>
             <div>
               <div class="result-id">Request failed</div>
-              <div class="result-name">Could not reach the vision API</div>
+              <div class="result-name">Could not reach Gemini</div>
             </div>
           </div>
-          <p class="note">The request failed or was blocked (some providers don't allow direct browser calls). Try the manual search box instead, or check your endpoint/key in Settings.</p>
+          <p class="note">${escapeHtml(e.message || 'Unknown error')}</p>
+          <p class="note">Try the manual search box instead, or double-check your key in Settings.</p>
         </div>
       `;
     }
