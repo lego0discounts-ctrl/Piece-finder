@@ -139,11 +139,10 @@
 
 <div class="modal-backdrop" id="modalBackdrop">
   <div class="modal">
-    <h2>Connect a vision API</h2>
-    <p class="desc">The photo gets sent here to guess the piece's name/part number, then the app builds a BrickLink search link from that guess. Any OpenAI-compatible vision endpoint works. Your key stays only in this browser.</p>
-    <div class="field"><label>Endpoint URL</label><input id="visionEndpoint" type="text" placeholder="https://api.openai.com/v1/chat/completions"></div>
-    <div class="field"><label>API key</label><input id="visionKey" type="password" autocomplete="off"></div>
-    <div class="field"><label>Model name</label><input id="visionModel" type="text" placeholder="e.g. gpt-4o-mini"></div>
+    <h2>Connect Gemini</h2>
+    <p class="desc">The photo gets sent to Google's Gemini API to guess the piece's name/part number, then the app builds a BrickLink search link from that guess. Get a free key at aistudio.google.com → "Get API key." Your key stays only in this browser.</p>
+    <div class="field"><label>Gemini API key</label><input id="visionKey" type="password" autocomplete="off"></div>
+    <div class="field"><label>Model</label><input id="visionModel" type="text" placeholder="gemini-2.5-flash"></div>
     <p class="desc" style="margin-top:2px;">No key? Photos still work — you'll just get a manual search box instead of an auto-guess.</p>
     <div id="settingsStatus"></div>
     <div class="modal-actions">
@@ -302,7 +301,7 @@
 
   // ---------- AI identify ----------
   async function identifyPhoto(dataUrl){
-    if(!settings.vision.endpoint || !settings.vision.key){
+    if(!settings.vision.key){
       resultWrap.innerHTML = `
         <div class="result-card">
           <div class="result-top">
@@ -312,31 +311,32 @@
               <div class="result-name">No vision API connected</div>
             </div>
           </div>
-          <p class="note">Add a vision API key in Settings (⚙) to auto-guess the piece, or type what you see in the search box above — colour, shape, and stud count go a long way (e.g. "black 1x2 plate").</p>
+          <p class="note">Add your Gemini API key in Settings (⚙) to auto-guess the piece, or type what you see in the search box above — colour, shape, and stud count go a long way (e.g. "black 1x2 plate").</p>
         </div>
       `;
       return;
     }
-    resultWrap.innerHTML = `<div class="result-card"><div class="status-msg ok">Sending photo to your vision API…</div></div>`;
+    resultWrap.innerHTML = `<div class="result-card"><div class="status-msg ok">Sending photo to Gemini…</div></div>`;
     try{
-      const resp = await fetch(settings.vision.endpoint, {
+      const model = settings.vision.model || 'gemini-2.5-flash';
+      const base64 = dataUrl.split(',')[1];
+      const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(settings.vision.key)}`;
+      const resp = await fetch(endpoint, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${settings.vision.key}` },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: settings.vision.model || 'gpt-4o-mini',
-          messages: [{
-            role: 'user',
-            content: [
-              { type: 'text', text: 'This is a photo of a single LEGO piece (a brick, plate, tile, or other part — not a set or minifig). Identify it as precisely as you can: the official BrickLink part number if you recognize it, otherwise a short precise description (colour, piece type, stud dimensions, e.g. "reddish brown 2x4 brick" or "trans-clear 1x1 round tile"). Reply with just that, nothing else.' },
-              { type: 'image_url', image_url: { url: dataUrl } }
+          contents: [{
+            parts: [
+              { text: 'This is a photo of a single LEGO piece (a brick, plate, tile, or other part — not a set or minifig). Identify it as precisely as you can: the official BrickLink part number if you recognize it, otherwise a short precise description (colour, piece type, stud dimensions, e.g. "reddish brown 2x4 brick" or "trans-clear 1x1 round tile"). Reply with just that, nothing else.' },
+              { inline_data: { mime_type: 'image/jpeg', data: base64 } }
             ]
           }],
-          max_tokens: 60
+          generationConfig: { maxOutputTokens: 60 }
         })
       });
       if(!resp.ok) throw new Error('bad response');
       const json = await resp.json();
-      const text = (json.choices?.[0]?.message?.content || json.content?.[0]?.text || '').trim();
+      const text = (json.candidates?.[0]?.content?.parts?.[0]?.text || '').trim();
       const url = blSearchUrl(text || 'lego part');
       resultWrap.innerHTML = `
         <div class="result-card">
@@ -372,7 +372,6 @@
 
   // ---------- settings modal ----------
   $('settingsBtn').addEventListener('click', () => {
-    $('visionEndpoint').value = settings.vision.endpoint || '';
     $('visionKey').value = settings.vision.key || '';
     $('visionModel').value = settings.vision.model || '';
     $('settingsStatus').innerHTML = '';
@@ -381,9 +380,8 @@
   $('closeSettingsBtn').addEventListener('click', () => $('modalBackdrop').classList.remove('open'));
   $('saveSettingsBtn').addEventListener('click', () => {
     settings.vision = {
-      endpoint: $('visionEndpoint').value.trim(),
       key: $('visionKey').value.trim(),
-      model: $('visionModel').value.trim()
+      model: $('visionModel').value.trim() || 'gemini-2.5-flash'
     };
     saveSettings();
     $('settingsStatus').innerHTML = '<div class="status-msg ok">Saved on this device.</div>';
